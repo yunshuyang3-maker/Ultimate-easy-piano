@@ -1,4 +1,3 @@
-//piano
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -29,7 +28,7 @@ small{opacity:.7}
 .black{width:40px;height:140px;background:linear-gradient(#111,#000);position:absolute;top:0;z-index:2;margin-left:-20px;border-radius:6px}
 .black:hover{box-shadow:0 0 15px var(--accent)}
 .key.active{box-shadow:var(--glow);transform:translateY(2px)}
-.song{margin-top:.7rem;transition:.3s}
+.song{margin-top:.7rem;transition:.3s;cursor:pointer}
 .song:hover{transform:translateX(5px);text-shadow:0 0 5px var(--accent)}
 .pattern{font-family:monospace;padding:.3rem .5rem;background:rgba(0,0,0,.3);border-radius:8px;display:inline-block}
 .favorite{float:right;cursor:pointer;font-size:1.2rem;transition:.3s}
@@ -48,31 +47,31 @@ small{opacity:.7}
 <body>
 <header>
 <h1>🎹 Ultimate Easy Piano</h1>
-<p>Modern • Trending • Playable</p>
+<p>Numbers for notes • Play songs first • Real song names</p>
 <button onclick="document.body.classList.toggle('light')">🌙 Theme</button>
 </header>
 <main>
 <div class="card">
 <h2>Piano</h2>
 <div class="piano">
-<div class="key white" data-f="261.63">C</div>
-<div class="key black" style="left:45px" data-f="277.18"></div>
-<div class="key white" data-f="293.66">D</div>
-<div class="key black" style="left:105px" data-f="311.13"></div>
-<div class="key white" data-f="329.63">E</div>
-<div class="key white" data-f="349.23">F</div>
-<div class="key black" style="left:225px" data-f="369.99"></div>
-<div class="key white" data-f="392.00">G</div>
-<div class="key black" style="left:285px" data-f="415.30"></div>
-<div class="key white" data-f="440.00">A</div>
-<div class="key black" style="left:345px" data-f="466.16"></div>
-<div class="key white" data-f="493.88">B</div>
+<div class="key white" data-f="261.63">1</div>
+<div class="key black" style="left:45px" data-f="277.18">-1</div>
+<div class="key white" data-f="293.66">2</div>
+<div class="key black" style="left:105px" data-f="311.13">-2</div>
+<div class="key white" data-f="329.63">3</div>
+<div class="key white" data-f="349.23">4</div>
+<div class="key black" style="left:225px" data-f="369.99">-3</div>
+<div class="key white" data-f="392.00">5</div>
+<div class="key black" style="left:285px" data-f="415.30">-4</div>
+<div class="key white" data-f="440.00">6</div>
+<div class="key black" style="left:345px" data-f="466.16">-5</div>
+<div class="key white" data-f="493.88">7</div>
 </div>
 </div>
 
 <div class="card">
 <h2>Songs</h2>
-<input id="search" placeholder="Search song, chord, mood..." oninput="searchSongs()">
+<input id="search" placeholder="Search song or number pattern..." oninput="searchSongs()">
 <small>Only 10 latest searches are saved.</small>
 <div id="auto" class="autocomplete"></div>
 <div id="songs"></div>
@@ -82,7 +81,7 @@ small{opacity:.7}
 <h2>Play Along</h2>
 <div id="lane"><div id="hitLine"></div></div>
 <p>Score: <span id="score">0</span></p>
-<button onclick="startPlayAlong()">▶ Start Play-Along</button>
+<button id="startButton" onclick="startPlayAlong()" disabled>▶ Start Play-Along</button>
 </div>
 
 <div id="combo">Combo: 0</div>
@@ -93,45 +92,95 @@ small{opacity:.7}
 <button onclick="addPlaylist()">➕ Add Playlist</button>
 <div id="playlists"></div>
 </div>
-</main>
 
 <script>
 const ctx=new (window.AudioContext||window.webkitAudioContext)();
-const chords=["C","G","Am","F","Dm","Em","A","Bb"],trending=["Blinding Lights","Espresso","Good Luck Babe","Meme Song","Rickroll","Coffin Dance","Dance Monkey","Stay","As It Was","Bad Habits"],songs=[];
-for(let i=1;i<=1000;i++){let n=i<=500?trending[i%trending.length]+(i>trending.length?" "+i:""):"Song "+i;songs.push({name:n,pattern:[chords[i%8],chords[(i+1)%8],chords[(i+2)%8],chords[(i+3)%8]]})}
-let fav=JSON.parse(localStorage.getItem("fav")||"[]"),history=JSON.parse(localStorage.getItem("hist")||"[]");
+const whiteKeys=[261.63,293.66,329.63,349.23,392.00,440.00,493.88];
+const blackKeys=[277.18,311.13,369.99,415.30,466.16];
+
+const songs=[
+{name:"As It Was",pattern:[1,5,6,4]},
+{name:"Bad Habits",pattern:[6,4,1,5]},
+{name:"Stay",pattern:[5,6,4,1]},
+{name:"Blinding Lights",pattern:[1,5,6,4]},
+{name:"Dance Monkey",pattern:[4,1,5,6]},
+{name:"Coffin Dance",pattern:[1,4,5,6]},
+{name:"Good 4 U",pattern:[1,5,6,4]},
+{name:"Levitating",pattern:[6,1,5,4]},
+{name:"Save Your Tears",pattern:[1,6,4,5]},
+{name:"Easy On Me",pattern:[4,1,5,6]}
+];
+
+// Duplicate songs up to 1000 for testing
+while(songs.length<1000){
+  const s=songs[songs.length%10];
+  songs.push({name:s.name+" "+(songs.length+1),pattern:s.pattern});
+}
+
+let fav=JSON.parse(localStorage.getItem("fav")||"[]");
+let history=JSON.parse(localStorage.getItem("hist")||"[]");
 let notes=[],playing=false,score=0,combo=0,playlists=JSON.parse(localStorage.getItem("playlists")||"[]");
+const startButton=document.getElementById("startButton");
 
 function play(f,key){const o=ctx.createOscillator(),g=ctx.createGain();o.type="triangle";o.frequency.value=f;g.gain.setValueAtTime(0,ctx.currentTime);g.gain.linearRampToValueAtTime(.2,ctx.currentTime+.05);g.gain.linearRampToValueAtTime(0,ctx.currentTime+.25);o.connect(g).connect(ctx.destination);o.start();key.classList.add("active");setTimeout(()=>key.classList.remove("active"),200);o.stop(ctx.currentTime+.26)}
 document.querySelectorAll(".key").forEach(k=>k.onclick=()=>play(k.dataset.f,k));
 
-function render(list){const s=document.getElementById("songs");s.innerHTML="";list.slice(0,50).forEach(x=>{const d=document.createElement("div");d.className="song";d.innerHTML=`<span class="favorite" onclick="favToggle('${x.name}')">${fav.includes(x.name)?"★":"☆"}</span><b>${x.name}</b><br><span class="pattern">${x.pattern.join(" – ")}</span>`;s.appendChild(d)})}
+function render(list){
+const s=document.getElementById("songs");s.innerHTML="";
+list.slice(0,50).forEach(x=>{
+const d=document.createElement("div");
+d.className="song";
+d.innerHTML=`<span class="favorite" onclick="favToggle('${x.name}')">${fav.includes(x.name)?"★":"☆"}</span><b>${x.name}</b><br><span class="pattern">${x.pattern.join(" – ")}</span>`;
+d.onclick=()=>playDemo(x);
+s.appendChild(d);
+})}
 render(songs);
 
-function searchSongs(){const q=search.value.toLowerCase().trim();if(q&&!history.includes(q)){history.unshift(q);history=history.slice(0,10);localStorage.setItem("hist",JSON.stringify(history))}render(songs.filter(s=>s.name.toLowerCase().includes(q)||s.pattern.join(" ").toLowerCase().includes(q)).slice(0,50))}
+function searchSongs(){
+const q=search.value.toLowerCase().trim();
+if(q&&!history.includes(q)){history.unshift(q);history=history.slice(0,10);localStorage.setItem("hist",JSON.stringify(history))}
+render(songs.filter(s=>s.name.toLowerCase().includes(q)||s.pattern.join(" ").includes(q)).slice(0,50))
+}
 
 function favToggle(n){fav.includes(n)?fav=fav.filter(f=>f!==n):fav.push(n);localStorage.setItem("fav",JSON.stringify(fav));searchSongs()}
 
-function startPlayAlong(){
-  notes=[]; score=0; combo=0;
-  document.getElementById("score").innerText=score;
-  document.getElementById("combo").innerText="Combo: "+combo;
-  playing=true;
-  const song=songs[Math.floor(Math.random()*songs.length)];
-  const melody=song.pattern;
-  const freqsMap={"C":261.63,"D":293.66,"E":329.63,"F":349.23,"G":392.00,"A":440.00,"B":493.88,"Am":440.00,"Dm":293.66,"Em":329.63,"Bb":466.16};
-  for(let i=0;i<50;i++){
-    const chord=melody[i%melody.length];
-    notes.push({y:-i*60,hit:false,freq:freqsMap[chord]||261.63});
-  }
-  requestAnimationFrame(updateNotes);
+function playDemo(song){
+startButton.disabled=true;
+notes=[];
+song.pattern.forEach((n,i)=>{setTimeout(()=>{
+const key=document.querySelectorAll(".key")[n>0?n-1:whiteKeys.length+(-n-1)];
+play(key.dataset.f,key);
+},i*500)})
+setTimeout(()=>{startButton.disabled=false},song.pattern.length*500+200)
 }
 
-function updateNotes(){if(!playing)return;const l=document.getElementById("lane");l.querySelectorAll(".note").forEach(n=>n.remove());notes.forEach(n=>{n.y+=2;if(n.y>260&&!n.hit){n.hit=true;combo=0;document.getElementById("combo").innerText="Combo: "+combo}if(n.y<260){const d=document.createElement("div");d.className="note";d.style.top=n.y+"px";l.appendChild(d)}});requestAnimationFrame(updateNotes)}
+function startPlayAlong(){
+notes=[]; score=0; combo=0;
+document.getElementById("score").innerText=score;
+document.getElementById("combo").innerText="Combo: "+combo;
+playing=true;
+const song=songs[Math.floor(Math.random()*songs.length)];
+const melody=song.pattern;
+for(let i=0;i<50;i++){
+  notes.push({y:-i*60,hit:false,num:melody[i%melody.length]});
+}
+requestAnimationFrame(updateNotes);
+}
+
+function updateNotes(){if(!playing)return;
+const l=document.getElementById("lane");
+l.querySelectorAll(".note").forEach(n=>n.remove());
+notes.forEach(n=>{
+n.y+=2;
+if(n.y>260&&!n.hit){n.hit=true;combo=0;document.getElementById("combo").innerText="Combo: "+combo}
+if(n.y<260){const d=document.createElement("div");d.className="note";d.style.top=n.y+"px";l.appendChild(d)}
+})
+requestAnimationFrame(updateNotes);
+}
 
 function createParticles(x,y){for(let i=0;i<5;i++){const p=document.createElement("div");p.className="particle";p.style.left=x+"px";p.style.top=y+"px";document.body.appendChild(p);setTimeout(()=>p.remove(),500)}}
 
-document.querySelectorAll(".key").forEach(k=>{k.addEventListener("click",()=>{const f=parseFloat(k.dataset.f);notes.forEach(n=>{if(!n.hit&&Math.abs(n.freq-f)<1&&Math.abs(n.y-220)<15){n.hit=true;score+=10;combo++;document.getElementById("score").innerText=score;document.getElementById("combo").innerText="Combo: "+combo;const r=k.getBoundingClientRect();createParticles(r.left+r.width/2,r.top+r.height/2)}})})})
+document.querySelectorAll(".key").forEach(k=>{k.addEventListener("click",()=>{const f=parseFloat(k.dataset.f);notes.forEach(n=>{if(!n.hit){let keyIndex=n.num>0?n.num-1:whiteKeys.length+(-n.num-1);if(Math.abs(parseFloat(document.querySelectorAll(".key")[keyIndex].dataset.f)-f)<1&&Math.abs(n.y-220)<15){n.hit=true;score+=10;combo++;document.getElementById("score").innerText=score;document.getElementById("combo").innerText="Combo: "+combo;const r=k.getBoundingClientRect();createParticles(r.left+r.width/2,r.top+r.height/2)}}})})})
 
 function renderPlaylists(){const p=document.getElementById("playlists");p.innerHTML="";playlists.forEach(pl=>{const d=document.createElement("div");d.innerHTML=`<b>${pl}</b>`;p.appendChild(d)})}
 renderPlaylists();
