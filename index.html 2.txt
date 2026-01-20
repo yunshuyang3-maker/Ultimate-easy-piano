@@ -6,9 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 :root{--bg:#0b1020;--card:rgba(255,255,255,.08);--text:#e5e7eb;--accent:#7c7cff;--glow:0 0 18px rgba(124,124,255,.8)}
-body.light{--bg:#f8fafc;--card:#fff;--text:#0f172a}
-*{box-sizing:border-box}
-body{margin:0;font-family:system-ui,sans-serif;background:radial-gradient(circle at top,var(--accent),var(--bg) 45%);color:var(--text);transition:.4s;animation:bgShift 30s infinite alternate}
+body{margin:0;font-family:system-ui,sans-serif;background:radial-gradient(circle at top,var(--accent),var(--bg) 45%);color:var(--text);animation:bgShift 30s infinite alternate}
 @keyframes bgShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
 header{padding:2rem 1rem;text-align:center;text-shadow:0 0 10px rgba(124,124,255,.5)}
 header h1{margin:0;font-size:2.2rem}
@@ -47,7 +45,7 @@ small{opacity:.7}
 <body>
 <header>
 <h1>🎹 Ultimate Easy Piano</h1>
-<p>Numbers for notes • Play songs first • Real song names</p>
+<p>Numbers for notes • Play demo twice • Real song names</p>
 <button onclick="document.body.classList.toggle('light')">🌙 Theme</button>
 </header>
 <main>
@@ -94,10 +92,12 @@ small{opacity:.7}
 </div>
 
 <script>
+// Audio setup
 const ctx=new (window.AudioContext||window.webkitAudioContext)();
 const whiteKeys=[261.63,293.66,329.63,349.23,392.00,440.00,493.88];
 const blackKeys=[277.18,311.13,369.99,415.30,466.16];
 
+// Trending/popular + meme songs (1000)
 const songs=[
 {name:"As It Was",pattern:[1,5,6,4]},
 {name:"Bad Habits",pattern:[6,4,1,5]},
@@ -111,7 +111,7 @@ const songs=[
 {name:"Easy On Me",pattern:[4,1,5,6]}
 ];
 
-// Duplicate songs up to 1000 for testing
+// Duplicate to 1000 songs
 while(songs.length<1000){
   const s=songs[songs.length%10];
   songs.push({name:s.name+" "+(songs.length+1),pattern:s.pattern});
@@ -121,6 +121,7 @@ let fav=JSON.parse(localStorage.getItem("fav")||"[]");
 let history=JSON.parse(localStorage.getItem("hist")||"[]");
 let notes=[],playing=false,score=0,combo=0,playlists=JSON.parse(localStorage.getItem("playlists")||"[]");
 const startButton=document.getElementById("startButton");
+const search=document.getElementById("search");
 
 function play(f,key){const o=ctx.createOscillator(),g=ctx.createGain();o.type="triangle";o.frequency.value=f;g.gain.setValueAtTime(0,ctx.currentTime);g.gain.linearRampToValueAtTime(.2,ctx.currentTime+.05);g.gain.linearRampToValueAtTime(0,ctx.currentTime+.25);o.connect(g).connect(ctx.destination);o.start();key.classList.add("active");setTimeout(()=>key.classList.remove("active"),200);o.stop(ctx.currentTime+.26)}
 document.querySelectorAll(".key").forEach(k=>k.onclick=()=>play(k.dataset.f,k));
@@ -147,11 +148,13 @@ function favToggle(n){fav.includes(n)?fav=fav.filter(f=>f!==n):fav.push(n);local
 function playDemo(song){
 startButton.disabled=true;
 notes=[];
-song.pattern.forEach((n,i)=>{setTimeout(()=>{
-const key=document.querySelectorAll(".key")[n>0?n-1:whiteKeys.length+(-n-1)];
-play(key.dataset.f,key);
-},i*500)})
-setTimeout(()=>{startButton.disabled=false},song.pattern.length*500+200)
+for(let t=0;t<2;t++){ // play twice
+  song.pattern.forEach((n,i)=>{setTimeout(()=>{
+    const key=document.querySelectorAll(".key")[n>0?n-1:whiteKeys.length+(-n-1)];
+    play(key.dataset.f,key);
+  },i*500 + t*song.pattern.length*500)})
+}
+setTimeout(()=>{startButton.disabled=false},2*song.pattern.length*500+200)
 }
 
 function startPlayAlong(){
